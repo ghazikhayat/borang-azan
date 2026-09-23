@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pemarkahan Pertandingan Azan</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for in-browser JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        islamic: {
+                            50: '#f2fdf5',
+                            100: '#e1fbe8',
+                            200: '#c3f6d2',
+                            300: '#94eeb1',
+                            400: '#5cde88',
+                            500: '#34c766',
+                            600: '#22a650',
+                            700: '#1e8442',
+                            800: '#1c6837',
+                            900: '#064e3b', // Deep green
+                            950: '#022c22',
+                        },
+                        gold: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        
+        /* Print Styles */
+        @media print {
+            body { background-color: white; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .print-container { width: 100%; padding: 0; margin: 0; }
+            .page-break { page-break-before: always; }
+            @page { margin: 2cm; }
+        }
+        .print-only { display: none; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #1e8442; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #064e3b; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const JUDGES_CONFIG = [
+            { id: 1, key: 'tajwidMakhraj', title: 'Juri 1 — Tajwid & Makhraj Huruf', shortName: 'Tajwid & Makhraj', max: 30, desc: ['Ketepatan hukum tajwid', 'Ketepatan makhraj huruf', 'Kejelasan sebutan', 'Ketepatan lafaz azan', 'Kesalahan bacaan'] },
+            { id: 2, key: 'suaraTarannum', title: 'Juri 2 — Suara & Tarannum', shortName: 'Suara & Tarannum', max: 25, desc: ['Kualiti suara', 'Kelunakan suara', 'Kesesuaian nada', 'Kawalan suara', 'Tarannum', 'Keupayaan mengekalkan nada'] },
+            { id: 3, key: 'fasohahKelancaran', title: 'Juri 3 — Fasohah & Kelancaran', shortName: 'Fasohah & Kelancaran', max: 25, desc: ['Kelancaran bacaan', 'Fasohah', 'Tidak tersekat-sekat', 'Kelancaran antara lafaz', 'Keyakinan ketika melaung'] },
+            { id: 4, key: 'adabPersembahan', title: 'Juri 4 — Adab & Persembahan', shortName: 'Adab & Persembahan', max: 20, desc: ['Adab ketika azan', 'Postur badan', 'Penampilan', 'Keyakinan', 'Penghayatan', 'Kesungguhan persembahan'] }
+        ];
+
+        const DEMO_DATA = [
+            { id: "d1", noPeserta: "T1-001", nama: "Ahmad Bin Abdullah", tahun: "4", kelas: "Al-Farabi", tahap: "Tahap 1", tarikh: new Date().toISOString().split('T')[0], markahJuri: { tajwidMakhraj: { markah: 28, catatan: "Sangat baik" }, suaraTarannum: { markah: 22, catatan: "Lunak" }, fasohahKelancaran: { markah: 24, catatan: "" }, adabPersembahan: { markah: 19, catatan: "Yakin" } } },
+            { id: "d2", noPeserta: "T1-002", nama: "Muhammad Ali", tahun: "5", kelas: "Ibn Sina", tahap: "Tahap 1", tarikh: new Date().toISOString().split('T')[0], markahJuri: { tajwidMakhraj: { markah: 25, catatan: "" }, suaraTarannum: { markah: 20, catatan: "" }, fasohahKelancaran: { markah: null, catatan: "" }, adabPersembahan: { markah: null, catatan: "" } } },
+            { id: "d3", noPeserta: "T1-003", nama: "Umar Al-Faruq", tahun: "6", kelas: "Al-Khawarizmi", tahap: "Tahap 1", tarikh: new Date().toISOString().split('T')[0], markahJuri: { tajwidMakhraj: { markah: 29, catatan: "Makhraj jelas" }, suaraTarannum: { markah: 24, catatan: "Tarannum sangat menarik" }, fasohahKelancaran: { markah: 24, catatan: "" }, adabPersembahan: { markah: 19, catatan: "" } } },
+            { id: "d4", noPeserta: "T2-001", nama: "Zaid Bin Harith", tahun: "1", kelas: "Amanah", tahap: "Tahap 2", tarikh: new Date().toISOString().split('T')[0], markahJuri: { tajwidMakhraj: { markah: 27, catatan: "" }, suaraTarannum: { markah: 23, catatan: "" }, fasohahKelancaran: { markah: 23, catatan: "" }, adabPersembahan: { markah: 18, catatan: "" } } },
+            { id: "d5", noPeserta: "T2-002", nama: "Hassan Al-Banna", tahun: "2", kelas: "Bestari", tahap: "Tahap 2", tarikh: new Date().toISOString().split('T')[0], markahJuri: { tajwidMakhraj: { markah: 26, catatan: "" }, suaraTarannum: { markah: null, catatan: "" }, fasohahKelancaran: { markah: 22, catatan: "" }, adabPersembahan: { markah: 17, catatan: "" } } },
+            { id: "d6", noPeserta: "T2-003", nama: "Tariq Bin Ziyad", tahun: "3", kelas: "Cemerlang", tahap: "Tahap 2", tarikh: new Date().toISOString().split('T')[0], markahJuri: { tajwidMakhraj: { markah: 29, catatan: "" }, suaraTarannum: { markah: 24, catatan: "" }, fasohahKelancaran: { markah: 24, catatan: "" }, adabPersembahan: { markah: 20, catatan: "Persembahan sempurna" } } },
+        ];
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        
+        const isComplete = (markahJuri) => {
+            return Object.values(markahJuri).every(juri => juri.markah !== null && juri.markah !== "");
+        };
+
+        const calculateTotal = (markahJuri) => {
+            return Object.values(markahJuri).reduce((sum, juri) => sum + (Number(juri.markah) || 0), 0);
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = React.useState('dashboard');
+            const [participants, setParticipants] = React.useState(() => {
+                const saved = localStorage.getItem('azanParticipants');
+                return saved ? JSON.parse(saved) : [];
+            });
+            const [toast, setToast] = React.useState(null);
+
+            React.useEffect(() => {
+                localStorage.setItem('azanParticipants', JSON.stringify(participants));
+            }, [participants]);
+
+            const showToast = (msg, type = 'success') => {
+                setToast({ msg, type });
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            const addParticipant = (data) => {
+                setParticipants([...participants, {
+                    ...data,
+                    id: generateId(),
+                    markahJuri: {
+                        tajwidMakhraj: { markah: null, catatan: "" },
+                        suaraTarannum: { markah: null, catatan: "" },
+                        fasohahKelancaran: { markah: null, catatan: "" },
+                        adabPersembahan: { markah: null, catatan: "" }
+                    }
+                }]);
+                showToast("Peserta berjaya ditambah!");
+            };
+
+            const updateParticipant = (id, data) => {
+                setParticipants(participants.map(p => p.id === id ? { ...p, ...data } : p));
+                showToast("Data peserta dikemaskini!");
+            };
+
+            const deleteParticipant = (id) => {
+                if (confirm("Adakah anda pasti mahu memadam peserta ini?")) {
+                    setParticipants(participants.filter(p => p.id !== id));
+                    showToast("Peserta dipadam.");
+                }
+            };
+
+            const saveScore = (participantId, judgeKey, scoreData) => {
+                setParticipants(participants.map(p => {
+                    if (p.id === participantId) {
+                        return {
+                            ...p,
+                            markahJuri: {
+                                ...p.markahJuri,
+                                [judgeKey]: scoreData
+                            }
+                        };
+                    }
+                    return p;
+                }));
+                showToast("Markah berjaya disimpan!");
+            };
+
+            // State untuk Tab Peserta
+            const [isEditing, setIsEditing] = React.useState(false);
+            const [formData, setFormData] = React.useState({ id: '', noPeserta: '', nama: '', tahun: '', kelas: '', tahap: 'Tahap 1', tarikh: new Date().toISOString().split('T')[0] });
+            const [searchQueryPeserta, setSearchQueryPeserta] = React.useState('');
+
+            // State untuk Tab Pemarkahan
+            const [selectedFilter, setSelectedFilter] = React.useState('Semua');
+            const [searchQueryPemarkahan, setSearchQueryPemarkahan] = React.useState('');
+            const [selectedParticipant, setSelectedParticipant] = React.useState(null);
+            const [selectedJudge, setSelectedJudge] = React.useState(null);
+            const [scoreForm, setScoreForm] = React.useState({ markah: '', catatan: '' });
+            const [showOverrideConfirm, setShowOverrideConfirm] = React.useState(false);
+
+            // State untuk Tab Keputusan
+            const [viewDetails, setViewDetails] = React.useState(null);
+
+            const renderDashboard = () => {
+                const total = participants.length;
+                const tahap1 = participants.filter(p => p.tahap === 'Tahap 1').length;
+                const tahap2 = participants.filter(p => p.tahap === 'Tahap 2').length;
+                const lengkap = participants.filter(p => isComplete(p.markahJuri)).length;
+                const belumLengkap = total - lengkap;
+
+                return (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-islamic-800">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500">Jumlah Peserta</p>
+                                        <p className="text-3xl font-bold text-gray-900">{total}</p>
+                                    </div>
+                                    <i className="ph ph-users text-4xl text-islamic-600"></i>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500">Tahap 1</p>
+                                        <p className="text-3xl font-bold text-gray-900">{tahap1}</p>
+                                    </div>
+                                    <i className="ph ph-student text-4xl text-blue-500"></i>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500">Tahap 2</p>
+                                        <p className="text-3xl font-bold text-gray-900">{tahap2}</p>
+                                    </div>
+                                    <i className="ph ph-student text-4xl text-purple-500"></i>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gold-500">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500">Pemarkahan Lengkap</p>
+                                        <p className="text-3xl font-bold text-gray-900">{lengkap}</p>
+                                    </div>
+                                    <i className="ph ph-check-circle text-4xl text-gold-500"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                                <h3 className="font-semibold text-gray-800">Status Pemarkahan Terkini</h3>
+                                <span className="text-sm px-3 py-1 bg-red-100 text-red-700 rounded-full">{belumLengkap} Belum Lengkap</span>
+                            </div>
+                            <div className="p-6 overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b">
+                                            <th className="pb-3">Peserta</th>
+                                            <th className="pb-3 text-center">Tahap</th>
+                                            <th className="pb-3 text-center">J1 (30)</th>
+                                            <th className="pb-3 text-center">J2 (25)</th>
+                                            <th className="pb-3 text-center">J3 (25)</th>
+                                            <th className="pb-3 text-center">J4 (20)</th>
+                                            <th className="pb-3 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {participants.slice(0, 10).map(p => (
+                                            <tr key={p.id} className="hover:bg-gray-50">
+                                                <td className="py-3 font-medium text-gray-900">{p.nama} <br/><span className="text-xs text-gray-500">{p.noPeserta}</span></td>
+                                                <td className="py-3 text-center text-sm text-gray-600">{p.tahap}</td>
+                                                <td className="py-3 text-center">{p.markahJuri.tajwidMakhraj.markah !== null ? <i className="ph ph-check text-green-600 font-bold"></i> : <span className="text-gray-300">—</span>}</td>
+                                                <td className="py-3 text-center">{p.markahJuri.suaraTarannum.markah !== null ? <i className="ph ph-check text-green-600 font-bold"></i> : <span className="text-gray-300">—</span>}</td>
+                                                <td className="py-3 text-center">{p.markahJuri.fasohahKelancaran.markah !== null ? <i className="ph ph-check text-green-600 font-bold"></i> : <span className="text-gray-300">—</span>}</td>
+                                                <td className="py-3 text-center">{p.markahJuri.adabPersembahan.markah !== null ? <i className="ph ph-check text-green-600 font-bold"></i> : <span className="text-gray-300">—</span>}</td>
+                                                <td className="py-3 text-center">
+                                                    {isComplete(p.markahJuri) ? 
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Lengkap</span> : 
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Belum Lengkap</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {participants.length === 0 && (
+                                            <tr><td colSpan="7" className="py-6 text-center text-gray-500">Tiada rekod peserta.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderPeserta = () => {
+                const handleSubmit = (e) => {
+                    e.preventDefault();
+                    if (isEditing) {
+                        updateParticipant(formData.id, formData);
+                    } else {
+                        addParticipant(formData);
+                    }
+                    resetForm();
+                };
+
+                const resetForm = () => {
+                    setFormData({ id: '', noPeserta: '', nama: '', tahun: '', kelas: '', tahap: 'Tahap 1', tarikh: new Date().toISOString().split('T')[0] });
+                    setIsEditing(false);
+                };
+
+                const handleEdit = (p) => {
+                    setFormData(p);
+                    setIsEditing(true);
+                };
+
+                const filtered = participants.filter(p => 
+                    p.nama.toLowerCase().includes(searchQueryPeserta.toLowerCase()) || 
+                    p.noPeserta.toLowerCase().includes(searchQueryPeserta.toLowerCase())
+                );
+
+                return (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+                        <div className="lg:col-span-1">
+                            <div className="bg-white rounded-xl shadow-sm p-6 border-t-4 border-islamic-800">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4">{isEditing ? 'Kemaskini Peserta' : 'Tambah Peserta Baru'}</h3>
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">No. Peserta</label>
+                                        <input type="text" required value={formData.noPeserta} onChange={e => setFormData({...formData, noPeserta: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 focus:border-islamic-500" placeholder="Contoh: P001" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penuh</label>
+                                        <input type="text" required value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 focus:border-islamic-500" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
+                                            <input type="text" required value={formData.tahun} onChange={e => setFormData({...formData, tahun: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
+                                            <input type="text" required value={formData.kelas} onChange={e => setFormData({...formData, kelas: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Tahap Pertandingan</label>
+                                        <select required value={formData.tahap} onChange={e => setFormData({...formData, tahap: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500">
+                                            <option value="Tahap 1">Tahap 1</option>
+                                            <option value="Tahap 2">Tahap 2</option>
+                                        </select>
+                                    </div>
+                                    <div className="pt-2 flex gap-2">
+                                        <button type="submit" className="flex-1 bg-islamic-800 text-white px-4 py-2 rounded-lg font-medium hover:bg-islamic-900 transition-colors">
+                                            {isEditing ? 'Simpan' : 'Tambah'}
+                                        </button>
+                                        {isEditing && (
+                                            <button type="button" onClick={resetForm} className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">Batal</button>
+                                        )}
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div className="lg:col-span-2">
+                            <div className="bg-white rounded-xl shadow-sm p-6">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                                    <h3 className="text-lg font-bold text-gray-800">Senarai Peserta</h3>
+                                    <div className="relative w-full sm:w-64">
+                                        <i className="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400"></i>
+                                        <input type="text" placeholder="Cari nama/no..." value={searchQueryPeserta} onChange={e => setSearchQueryPeserta(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 focus:border-islamic-500 text-sm" />
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
+                                                <th className="px-4 py-3 rounded-tl-lg">No</th>
+                                                <th className="px-4 py-3">Nama</th>
+                                                <th className="px-4 py-3">Tahap</th>
+                                                <th className="px-4 py-3">Kelas</th>
+                                                <th className="px-4 py-3 rounded-tr-lg text-right">Tindakan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {filtered.map(p => (
+                                                <tr key={p.id} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-3 font-medium text-islamic-800">{p.noPeserta}</td>
+                                                    <td className="px-4 py-3 font-medium text-gray-900">{p.nama}</td>
+                                                    <td className="px-4 py-3 text-sm text-gray-600">{p.tahap}</td>
+                                                    <td className="px-4 py-3 text-sm text-gray-600">{p.tahun} {p.kelas}</td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 p-1"><i className="ph ph-pencil-simple text-lg"></i></button>
+                                                        <button onClick={() => deleteParticipant(p.id)} className="text-red-600 hover:text-red-800 p-1 ml-2"><i className="ph ph-trash text-lg"></i></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {filtered.length === 0 && (
+                                                <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">Tiada peserta dijumpai.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderPemarkahan = () => {
+                // Derived state for list
+                const filteredList = participants.filter(p => {
+                    const matchSearch = p.nama.toLowerCase().includes(searchQueryPemarkahan.toLowerCase()) || p.noPeserta.toLowerCase().includes(searchQueryPemarkahan.toLowerCase());
+                    if (!matchSearch) return false;
+                    if (selectedFilter === 'Tahap 1') return p.tahap === 'Tahap 1';
+                    if (selectedFilter === 'Tahap 2') return p.tahap === 'Tahap 2';
+                    if (selectedFilter === 'Lengkap') return isComplete(p.markahJuri);
+                    if (selectedFilter === 'Belum Lengkap') return !isComplete(p.markahJuri);
+                    return true;
+                });
+
+                const handleNilaiClick = (p) => {
+                    setSelectedParticipant(p);
+                    setSelectedJudge(null);
+                    setShowOverrideConfirm(false);
+                };
+
+                const handleJudgeSelect = (judge) => {
+                    const existingData = selectedParticipant.markahJuri[judge.key];
+                    if (existingData.markah !== null) {
+                        setShowOverrideConfirm(true);
+                        setScoreForm({ markah: existingData.markah, catatan: existingData.catatan });
+                    } else {
+                        setShowOverrideConfirm(false);
+                        setScoreForm({ markah: '', catatan: '' });
+                    }
+                    setSelectedJudge(judge);
+                };
+
+                const handleScoreSubmit = (e) => {
+                    e.preventDefault();
+                    let val = parseInt(scoreForm.markah);
+                    if (isNaN(val) || val < 0 || val > selectedJudge.max) {
+                        alert(`Markah tidak sah. Mesti antara 0 - ${selectedJudge.max}`);
+                        return;
+                    }
+                    saveScore(selectedParticipant.id, selectedJudge.key, { markah: val, catatan: scoreForm.catatan });
+                    // Update local state to reflect immediately without closing modal if they want to view
+                    setSelectedParticipant({...selectedParticipant, markahJuri: { ...selectedParticipant.markahJuri, [selectedJudge.key]: { markah: val, catatan: scoreForm.catatan } }});
+                    setShowOverrideConfirm(true); // Switch to "Kemaskini" mode after saving
+                };
+
+                if (selectedParticipant) {
+                    // Modal/View for specific participant scoring
+                    return (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 animate-fade-in relative">
+                            <button onClick={() => setSelectedParticipant(null)} className="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-400 hover:text-gray-700">
+                                <i className="ph ph-x text-2xl"></i>
+                            </button>
+                            
+                            <div className="mb-8 border-b pb-4">
+                                <h2 className="text-2xl font-bold text-gray-900">{selectedParticipant.nama}</h2>
+                                <p className="text-gray-600 flex items-center gap-2 mt-1">
+                                    <span className="font-medium bg-gray-100 px-2 py-0.5 rounded text-sm">{selectedParticipant.noPeserta}</span> 
+                                    • {selectedParticipant.tahap} • {selectedParticipant.tahun} {selectedParticipant.kelas}
+                                </p>
+                            </div>
+
+                            {!selectedJudge ? (
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-4 text-center">PILIH JURI UNTUK MEMASUKKAN MARKAH</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {JUDGES_CONFIG.map(judge => {
+                                            const hasScore = selectedParticipant.markahJuri[judge.key].markah !== null;
+                                            return (
+                                                <button 
+                                                    key={judge.id} 
+                                                    onClick={() => handleJudgeSelect(judge)}
+                                                    className={`p-6 rounded-xl border-2 text-left transition-all ${hasScore ? 'border-green-500 bg-green-50 hover:bg-green-100' : 'border-gray-200 hover:border-islamic-500 hover:shadow-md'}`}
+                                                >
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h4 className="font-bold text-lg text-gray-800">{judge.title}</h4>
+                                                        {hasScore && <i className="ph ph-check-circle text-2xl text-green-600"></i>}
+                                                    </div>
+                                                    <p className="text-sm text-gray-500 mb-4">Markah Maksimum: <span className="font-bold text-gray-900">{judge.max}</span></p>
+                                                    {hasScore && <p className="text-sm font-medium text-green-700 bg-green-200 inline-block px-2 py-1 rounded">Markah direkod: {selectedParticipant.markahJuri[judge.key].markah}</p>}
+                                                    {!hasScore && <span className="text-sm font-medium text-islamic-600 flex items-center gap-1">Pilih <i className="ph ph-arrow-right"></i></span>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="max-w-2xl mx-auto">
+                                    <button onClick={() => setSelectedJudge(null)} className="mb-6 text-sm text-islamic-700 hover:text-islamic-900 flex items-center gap-1 font-medium">
+                                        <i className="ph ph-arrow-left"></i> Kembali ke Senarai Juri
+                                    </button>
+                                    
+                                    <div className="bg-islamic-50 border border-islamic-100 rounded-xl p-6 mb-6">
+                                        <h3 className="text-xl font-bold text-islamic-900">{selectedJudge.title}</h3>
+                                        <div className="mt-4 grid grid-cols-2 gap-2">
+                                            {selectedJudge.desc.map((d, i) => (
+                                                <div key={i} className="flex items-center gap-2 text-sm text-islamic-800">
+                                                    <i className="ph ph-check text-islamic-500"></i> {d}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {showOverrideConfirm && selectedParticipant.markahJuri[selectedJudge.key].markah !== null ? (
+                                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                                            <div className="flex items-start gap-3">
+                                                <i className="ph ph-warning-circle text-2xl text-amber-600 mt-1"></i>
+                                                <div>
+                                                    <p className="font-medium text-amber-900">Markah telah direkodkan ({selectedParticipant.markahJuri[selectedJudge.key].markah}/{selectedJudge.max})</p>
+                                                    <p className="text-sm text-amber-700">Adakah anda mahu mengemaskini markah ini?</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 w-full sm:w-auto">
+                                                <button onClick={() => setShowOverrideConfirm(false)} className="flex-1 sm:flex-none bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded font-medium hover:bg-gray-50">KEMASKINI</button>
+                                            </div>
+                                        </div>
+                                    ) : null}
+
+                                    {(!showOverrideConfirm || selectedParticipant.markahJuri[selectedJudge.key].markah === null) && (
+                                        <form onSubmit={handleScoreSubmit} className="space-y-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                            <div>
+                                                <label className="block text-lg font-bold text-gray-800 mb-2">Markah <span className="text-red-500">*</span></label>
+                                                <div className="flex items-center gap-4">
+                                                    <input 
+                                                        type="number" 
+                                                        required 
+                                                        min="0" 
+                                                        max={selectedJudge.max} 
+                                                        value={scoreForm.markah} 
+                                                        onChange={e => setScoreForm({...scoreForm, markah: e.target.value})}
+                                                        className="w-32 text-center text-3xl font-bold px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-islamic-500 focus:border-islamic-500 bg-gray-50" 
+                                                    />
+                                                    <span className="text-2xl font-bold text-gray-400">/ {selectedJudge.max}</span>
+                                                </div>
+                                                <p className="text-sm text-gray-500 mt-2">Masukkan nilai integer dari 0 hingga {selectedJudge.max}.</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Catatan Juri (Pilihan)</label>
+                                                <textarea 
+                                                    rows="3" 
+                                                    value={scoreForm.catatan}
+                                                    onChange={e => setScoreForm({...scoreForm, catatan: e.target.value})}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 focus:border-islamic-500"
+                                                    placeholder="Masukkan ulasan atau teguran..."
+                                                ></textarea>
+                                            </div>
+                                            <button type="submit" className="w-full bg-islamic-800 text-white text-lg font-bold py-4 rounded-xl hover:bg-islamic-900 transition-colors shadow-md flex justify-center items-center gap-2">
+                                                <i className="ph ph-floppy-disk text-2xl"></i>
+                                                SIMPAN MARKAH
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                }
+
+                // Main List View
+                return (
+                    <div className="bg-white rounded-xl shadow-sm p-6 animate-fade-in">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                            <h3 className="text-lg font-bold text-gray-800">Sistem Pemarkahan</h3>
+                            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                                <select value={selectedFilter} onChange={e => setSelectedFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 text-sm">
+                                    <option>Semua</option>
+                                    <option>Tahap 1</option>
+                                    <option>Tahap 2</option>
+                                    <option>Belum Lengkap</option>
+                                    <option>Lengkap</option>
+                                </select>
+                                <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
+                                    <i className="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400"></i>
+                                    <input type="text" placeholder="Cari peserta..." value={searchQueryPemarkahan} onChange={e => setSearchQueryPemarkahan(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 text-sm" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {filteredList.map(p => {
+                                const complete = isComplete(p.markahJuri);
+                                const total = calculateTotal(p.markahJuri);
+                                return (
+                                    <div key={p.id} className="border border-gray-200 rounded-xl p-4 flex flex-col bg-gray-50 hover:bg-white transition-colors hover:shadow-md">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <span className="text-xs font-bold text-islamic-700 bg-islamic-100 px-2 py-1 rounded">{p.noPeserta}</span>
+                                                <h4 className="font-bold text-lg text-gray-900 mt-1 line-clamp-1">{p.nama}</h4>
+                                                <p className="text-xs text-gray-500">{p.tahap} • {p.tahun} {p.kelas}</p>
+                                            </div>
+                                            {complete ? 
+                                                <div className="text-right">
+                                                    <span className="block text-2xl font-black text-islamic-800">{total}</span>
+                                                    <span className="text-[10px] uppercase font-bold text-green-600 tracking-wider">Lengkap</span>
+                                                </div>
+                                                : 
+                                                <div className="text-right">
+                                                    <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-1 rounded-full whitespace-nowrap">Belum Lengkap</span>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div className="mt-3 mb-4 flex gap-1 justify-between">
+                                            {JUDGES_CONFIG.map((j, i) => (
+                                                <div key={i} className={`flex-1 text-center py-1 rounded ${p.markahJuri[j.key].markah !== null ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-400'}`} title={j.shortName}>
+                                                    <span className="text-[10px] font-bold block mb-0.5">J{i+1}</span>
+                                                    <span className="text-xs font-semibold">{p.markahJuri[j.key].markah !== null ? p.markahJuri[j.key].markah : '-'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button onClick={() => handleNilaiClick(p)} className="mt-auto w-full bg-islamic-800 text-white font-medium py-2 rounded-lg hover:bg-islamic-900 flex items-center justify-center gap-2">
+                                            {complete ? 'LIHAT / KEMASKINI' : 'NILAI SEKARANG'}
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                            {filteredList.length === 0 && (
+                                <div className="col-span-full py-12 text-center text-gray-500">Tiada peserta dijumpai mematuhi kriteria carian.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderKeputusan = () => {
+                const getRanked = (tahap) => {
+                    return participants
+                        .filter(p => p.tahap === tahap && isComplete(p.markahJuri))
+                        .sort((a, b) => {
+                            const totalA = calculateTotal(a.markahJuri);
+                            const totalB = calculateTotal(b.markahJuri);
+                            if (totalB !== totalA) return totalB - totalA;
+                            // Tie breakers
+                            for (let j of JUDGES_CONFIG) {
+                                const scoreA = a.markahJuri[j.key].markah || 0;
+                                const scoreB = b.markahJuri[j.key].markah || 0;
+                                if (scoreB !== scoreA) return scoreB - scoreA;
+                            }
+                            return 0;
+                        });
+                };
+
+                const rankedTahap1 = getRanked('Tahap 1');
+                const rankedTahap2 = getRanked('Tahap 2');
+
+                const renderTable = (list, title) => (
+                    <div className="mb-8 bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-islamic-900 text-white px-6 py-4 flex justify-between items-center print-only:bg-transparent print-only:text-black print-only:border-b-2 print-only:border-black">
+                            <h3 className="font-bold text-lg uppercase tracking-wider">{title}</h3>
+                            <span className="text-sm bg-islamic-800 px-3 py-1 rounded-full print-only:hidden">{list.length} Peserta (Lengkap)</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase border-b print-only:border-black">
+                                        <th className="px-6 py-3 w-16 text-center">Ked.</th>
+                                        <th className="px-6 py-3">Nama Peserta</th>
+                                        <th className="px-6 py-3 w-24">Kelas</th>
+                                        <th className="px-6 py-3 text-center print-only:hidden">J1</th>
+                                        <th className="px-6 py-3 text-center print-only:hidden">J2</th>
+                                        <th className="px-6 py-3 text-center print-only:hidden">J3</th>
+                                        <th className="px-6 py-3 text-center print-only:hidden">J4</th>
+                                        <th className="px-6 py-3 text-center font-bold text-islamic-800 w-32">Markah</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {list.map((p, index) => (
+                                        <tr key={p.id} className="hover:bg-gray-50 transition-colors cursor-pointer print-only:cursor-default" onClick={() => setViewDetails(p)}>
+                                            <td className="px-6 py-4 text-center">
+                                                {index === 0 ? <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gold-500 text-white font-bold shadow-md">1</span> :
+                                                 index === 1 ? <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-400 text-white font-bold shadow-md">2</span> :
+                                                 index === 2 ? <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-700 text-white font-bold shadow-md">3</span> :
+                                                 <span className="font-medium text-gray-500">{index + 1}</span>}
+                                            </td>
+                                            <td className="px-6 py-4 font-bold text-gray-900">{p.nama} <br/><span className="text-xs font-normal text-gray-500 print-only:hidden">{p.noPeserta}</span></td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">{p.tahun} {p.kelas}</td>
+                                            <td className="px-6 py-4 text-center text-sm text-gray-500 print-only:hidden">{p.markahJuri.tajwidMakhraj.markah}</td>
+                                            <td className="px-6 py-4 text-center text-sm text-gray-500 print-only:hidden">{p.markahJuri.suaraTarannum.markah}</td>
+                                            <td className="px-6 py-4 text-center text-sm text-gray-500 print-only:hidden">{p.markahJuri.fasohahKelancaran.markah}</td>
+                                            <td className="px-6 py-4 text-center text-sm text-gray-500 print-only:hidden">{p.markahJuri.adabPersembahan.markah}</td>
+                                            <td className="px-6 py-4 text-center text-xl font-black text-islamic-800">{calculateTotal(p.markahJuri)}<span className="text-sm font-normal text-gray-400 print-only:hidden">/100</span></td>
+                                        </tr>
+                                    ))}
+                                    {list.length === 0 && (
+                                        <tr><td colSpan="8" className="px-6 py-8 text-center text-gray-500">Tiada peserta yang mempunyai pemarkahan lengkap.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+
+                if (viewDetails) {
+                    const total = calculateTotal(viewDetails.markahJuri);
+                    return (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 max-w-3xl mx-auto animate-fade-in relative print-container">
+                            <div className="absolute top-4 right-4 flex gap-2 no-print">
+                                <button onClick={() => window.print()} className="bg-gray-100 text-gray-700 px-3 py-2 rounded hover:bg-gray-200 flex items-center gap-2"><i className="ph ph-printer"></i> Cetak Borang</button>
+                                <button onClick={() => setViewDetails(null)} className="text-gray-400 hover:text-gray-700 p-2"><i className="ph ph-x text-2xl"></i></button>
+                            </div>
+
+                            <div className="text-center mb-8 border-b-2 border-islamic-800 pb-6">
+                                <h2 className="text-2xl font-black text-islamic-900 uppercase">Sistem Pemarkahan Pertandingan Azan</h2>
+                                <p className="text-gray-600 mt-2">Borang Keputusan Individu</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-lg">
+                                <div><span className="text-sm text-gray-500 block">Nama Peserta</span><span className="font-bold text-lg">{viewDetails.nama}</span></div>
+                                <div><span className="text-sm text-gray-500 block">No. Peserta</span><span className="font-bold">{viewDetails.noPeserta}</span></div>
+                                <div><span className="text-sm text-gray-500 block">Kategori / Tahap</span><span className="font-bold">{viewDetails.tahap}</span></div>
+                                <div><span className="text-sm text-gray-500 block">Kelas</span><span className="font-bold">{viewDetails.tahun} {viewDetails.kelas}</span></div>
+                            </div>
+
+                            <table className="w-full text-left border border-gray-300 mb-8">
+                                <thead>
+                                    <tr className="bg-islamic-50">
+                                        <th className="p-3 border border-gray-300 w-1/2">Komponen Penilaian</th>
+                                        <th className="p-3 border border-gray-300 text-center w-24">Markah</th>
+                                        <th className="p-3 border border-gray-300">Catatan Juri</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {JUDGES_CONFIG.map(j => (
+                                        <tr key={j.key}>
+                                            <td className="p-3 border border-gray-300 font-medium">
+                                                {j.title}
+                                                <span className="block text-xs font-normal text-gray-500 mt-1">Markah Maks: {j.max}</span>
+                                            </td>
+                                            <td className="p-3 border border-gray-300 text-center font-bold text-lg">{viewDetails.markahJuri[j.key].markah ?? '-'}</td>
+                                            <td className="p-3 border border-gray-300 text-sm text-gray-600 italic">{viewDetails.markahJuri[j.key].catatan || '-'}</td>
+                                        </tr>
+                                    ))}
+                                    <tr className="bg-islamic-800 text-white">
+                                        <td className="p-4 border border-islamic-900 font-bold text-right text-lg">JUMLAH KESELURUHAN</td>
+                                        <td className="p-4 border border-islamic-900 text-center font-black text-2xl">{total}</td>
+                                        <td className="p-4 border border-islamic-900 text-sm">/ 100 MARKAH ({total}%)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            
+                            <div className="grid grid-cols-4 gap-4 mt-16 print-only:flex">
+                                {JUDGES_CONFIG.map((j, i) => (
+                                    <div key={i} className="text-center pt-8 border-t border-gray-400">
+                                        <span className="block text-xs font-bold">{j.shortName}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="animate-fade-in print-container">
+                        <div className="flex justify-between items-center mb-6 no-print">
+                            <h2 className="text-2xl font-bold text-gray-800">Keputusan Rasmi</h2>
+                            <button onClick={() => window.print()} className="bg-islamic-800 text-white px-4 py-2 rounded-lg font-medium hover:bg-islamic-900 flex items-center gap-2">
+                                <i className="ph ph-printer text-xl"></i> Cetak Keputusan
+                            </button>
+                        </div>
+                        
+                        <div className="print-only mb-8 text-center hidden">
+                            <h1 className="text-3xl font-black uppercase border-b-2 border-black inline-block pb-2 mb-4">Keputusan Pertandingan Azan</h1>
+                        </div>
+
+                        {renderTable(rankedTahap1, 'Keputusan Tahap 1')}
+                        <div className="page-break"></div>
+                        {renderTable(rankedTahap2, 'Keputusan Tahap 2')}
+                    </div>
+                );
+            };
+
+            const renderData = () => {
+                const exportCSV = () => {
+                    let csv = 'No Peserta,Nama,Tahun,Kelas,Tahap,Tajwid & Makhraj,Suara & Tarannum,Fasohah & Kelancaran,Adab & Persembahan,Jumlah,Peratus,Status\n';
+                    participants.forEach(p => {
+                        const m = p.markahJuri;
+                        const t = calculateTotal(m);
+                        const status = isComplete(m) ? 'LENGKAP' : 'BELUM LENGKAP';
+                        csv += `"${p.noPeserta}","${p.nama}","${p.tahun}","${p.kelas}","${p.tahap}","${m.tajwidMakhraj.markah||''}","${m.suaraTarannum.markah||''}","${m.fasohahKelancaran.markah||''}","${m.adabPersembahan.markah||''}","${t}","${t}%","${status}"\n`;
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = "keputusan_azan.csv";
+                    link.click();
+                };
+
+                const backupJSON = () => {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(participants));
+                    const link = document.createElement("a");
+                    link.href = dataStr;
+                    link.download = "backup_azan_data.json";
+                    link.click();
+                };
+
+                const restoreJSON = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const json = JSON.parse(event.target.result);
+                            if (Array.isArray(json)) {
+                                setParticipants(json);
+                                showToast("Data berjaya dipulihkan!");
+                            } else throw new Error("Invalid format");
+                        } catch (err) {
+                            alert("Gagal membaca fail JSON. Format tidak sah.");
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
+                const loadDemo = () => {
+                    if(confirm("Amaran: Ini akan menambah data demo ke senarai sedia ada. Teruskan?")) {
+                        // avoid duplicate IDs by mapping new ones
+                        const demo = DEMO_DATA.map(d => ({...d, id: generateId()}));
+                        setParticipants([...participants, ...demo]);
+                        showToast("Data demo dimuatkan.");
+                    }
+                };
+
+                const clearAll = () => {
+                    if (confirm("AMARAN Keras! Adakah anda pasti mahu memadam SEMUA data? Tindakan ini tidak boleh dibuat asal.")) {
+                        setParticipants([]);
+                        showToast("Semua data telah dipadam.");
+                    }
+                };
+
+                return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><i className="ph ph-export text-islamic-600"></i> Eksport Data</h3>
+                            <p className="text-sm text-gray-600 mb-6">Muat turun data pemarkahan untuk rujukan atau sandaran (backup).</p>
+                            <div className="space-y-3">
+                                <button onClick={exportCSV} className="w-full bg-blue-50 text-blue-700 border border-blue-200 py-3 rounded-lg font-medium hover:bg-blue-100 flex items-center justify-center gap-2">
+                                    <i className="ph ph-file-csv text-xl"></i> Export ke CSV (Excel)
+                                </button>
+                                <button onClick={backupJSON} className="w-full bg-islamic-50 text-islamic-700 border border-islamic-200 py-3 rounded-lg font-medium hover:bg-islamic-100 flex items-center justify-center gap-2">
+                                    <i className="ph ph-database text-xl"></i> Backup Data (JSON)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><i className="ph ph-import text-amber-600"></i> Import & Pengurusan</h3>
+                            <p className="text-sm text-gray-600 mb-6">Pulihkan data dari fail JSON atau urus data sistem.</p>
+                            <div className="space-y-3">
+                                <div className="relative">
+                                    <input type="file" accept=".json" onChange={restoreJSON} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Pilih fail JSON" />
+                                    <div className="w-full bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-lg font-medium hover:bg-gray-100 flex items-center justify-center gap-2 text-center pointer-events-none">
+                                        <i className="ph ph-upload-simple text-xl"></i> Restore Data (JSON)
+                                    </div>
+                                </div>
+                                <button onClick={loadDemo} className="w-full bg-purple-50 text-purple-700 border border-purple-200 py-3 rounded-lg font-medium hover:bg-purple-100 flex items-center justify-center gap-2">
+                                    <i className="ph ph-magic-wand text-xl"></i> Muat Data Demo
+                                </button>
+                                <button onClick={clearAll} className="w-full bg-red-50 text-red-700 border border-red-200 py-3 rounded-lg font-medium hover:bg-red-100 flex items-center justify-center gap-2 mt-4">
+                                    <i className="ph ph-warning-octagon text-xl"></i> Padam Semua Data
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const TABS = [
+                { id: 'dashboard', label: 'Dashboard', icon: 'ph-squares-four' },
+                { id: 'peserta', label: 'Peserta', icon: 'ph-users' },
+                { id: 'pemarkahan', label: 'Pemarkahan', icon: 'ph-check-square-offset' },
+                { id: 'keputusan', label: 'Keputusan', icon: 'ph-trophy' },
+                { id: 'data', label: 'Data & Tetapan', icon: 'ph-database' }
+            ];
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    {/* Header */}
+                    <header className="bg-islamic-900 text-white shadow-md no-print sticky top-0 z-10">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-gold-500 text-islamic-950 p-2 rounded-lg">
+                                        <i className="ph ph-microphone-stage text-2xl"></i>
+                                    </div>
+                                    <div>
+                                        <h1 className="text-lg sm:text-xl font-bold leading-tight">SISTEM PEMARKAHAN AZAN</h1>
+                                        <p className="text-[10px] sm:text-xs text-islamic-200 hidden sm:block uppercase tracking-wider">Tahap 1 & Tahap 2 Bersepadu</p>
+                                    </div>
+                                </div>
+                                <div className="text-right text-xs text-islamic-300 hidden md:block">
+                                    Data disimpan dalam LocalStorage browser
+                                </div>
+                            </div>
+                        </div>
+                        {/* Navigation */}
+                        <div className="bg-islamic-950 border-t border-islamic-800">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                <nav className="flex space-x-1 sm:space-x-4 overflow-x-auto py-2 no-scrollbar">
+                                    {TABS.map(tab => (
+                                        <button 
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${activeTab === tab.id ? 'bg-islamic-700 text-white' : 'text-islamic-200 hover:bg-islamic-800 hover:text-white'}`}
+                                        >
+                                            <i className={`ph ${tab.icon} text-lg`}></i> {tab.label}
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content Area */}
+                    <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+                        {activeTab === 'dashboard' && renderDashboard()}
+                        {activeTab === 'peserta' && renderPeserta()}
+                        {activeTab === 'pemarkahan' && renderPemarkahan()}
+                        {activeTab === 'keputusan' && renderKeputusan()}
+                        {activeTab === 'data' && renderData()}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-white border-t border-gray-200 py-6 text-center text-sm text-gray-500 no-print mt-auto">
+                        <p>Sistem Pemarkahan Pertandingan Azan &copy; {new Date().getFullYear()}</p>
+                    </footer>
+
+                    {/* Toast Notification */}
+                    {toast && (
+                        <div className="fixed bottom-4 right-4 z-50 animate-fade-in no-print">
+                            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white font-medium ${toast.type === 'success' ? 'bg-islamic-700' : 'bg-red-600'}`}>
+                                <i className={`ph ${toast.type === 'success' ? 'ph-check-circle' : 'ph-warning-circle'} text-xl`}></i>
+                                {toast.msg}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+
+    <style>
+        /* Custom Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        /* Hide scrollbar for nav */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</body>
+</html>
