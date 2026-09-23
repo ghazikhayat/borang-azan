@@ -13,6 +13,8 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- Babel for in-browser JSX compilation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- SheetJS for Excel Support -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     
     <script>
         tailwind.config = {
@@ -154,6 +156,94 @@
                     return p;
                 }));
                 showToast("Markah berjaya disimpan!");
+            };
+
+            const downloadExcelTemplate = () => {
+                try {
+                    const ws = XLSX.utils.aoa_to_sheet([
+                        ["No Peserta", "Nama", "Tahun", "Kelas", "Tahap"],
+                        ["P001", "Ahmad Bin Abdullah", "4", "Al-Farabi", "Tahap 1"],
+                        ["P002", "Muhammad Ali", "5", "Ibn Sina", "Tahap 2"]
+                    ]);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Senarai Peserta");
+                    XLSX.writeFile(wb, "Format_Import_Peserta.xlsx");
+                    showToast("Format Excel dimuat turun.");
+                } catch (e) {
+                    console.error(e);
+                    showToast("Ralat memuat turun format excel.", "error");
+                }
+            };
+
+            const handleImportExcel = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = new Uint8Array(event.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        
+                        // Parse sheet menjadi array
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        
+                        if (jsonData.length < 2) {
+                            showToast("Fail Excel kosong atau tiada data rekod.", "error");
+                            return;
+                        }
+
+                        const newParticipants = [];
+                        const currentDate = new Date().toISOString().split('T')[0];
+
+                        // Mula dari row ke-1 (abaikan baris 0 kerana ia adalah tajuk/header)
+                        for (let i = 1; i < jsonData.length; i++) {
+                            const row = jsonData[i];
+                            if (!row || row.length === 0) continue;
+
+                            // Susunan lajur Excel: No, Nama, Tahun, Kelas, Tahap
+                            const rawNoPeserta = row[0] ? String(row[0]).trim() : '';
+                            const rawNama = row[1] ? String(row[1]).trim() : '';
+                            const rawTahun = row[2] ? String(row[2]).trim() : '-';
+                            const rawKelas = row[3] ? String(row[3]).trim() : '-';
+                            const rawTahap = row[4] ? String(row[4]).trim() : 'Tahap 1';
+
+                            if (rawNama) { // Rekod wajib ada sekurang-kurangnya nama
+                                let tahapFormatted = rawTahap.toLowerCase().includes('2') ? 'Tahap 2' : 'Tahap 1';
+
+                                newParticipants.push({
+                                    id: generateId() + i,
+                                    noPeserta: rawNoPeserta || `P${String(participants.length + i).padStart(3, '0')}`,
+                                    nama: rawNama,
+                                    tahun: rawTahun,
+                                    kelas: rawKelas,
+                                    tahap: tahapFormatted,
+                                    tarikh: currentDate,
+                                    markahJuri: {
+                                        tajwidMakhraj: { markah: null, catatan: "" },
+                                        suaraTarannum: { markah: null, catatan: "" },
+                                        fasohahKelancaran: { markah: null, catatan: "" },
+                                        adabPersembahan: { markah: null, catatan: "" }
+                                    }
+                                });
+                            }
+                        }
+
+                        if (newParticipants.length > 0) {
+                            setParticipants(prev => [...prev, ...newParticipants]);
+                            showToast(`${newParticipants.length} peserta berjaya diimport dari Excel!`, "success");
+                        } else {
+                            showToast("Tiada rekod sah dijumpai.", "error");
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showToast("Ralat membaca fail Excel. Pastikan format betul.", "error");
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+                e.target.value = null; // Reset input fail supaya boleh muat naik fail sama jika perlu
             };
 
             // State untuk Tab Peserta
@@ -336,11 +426,25 @@
                         </div>
                         <div className="lg:col-span-2">
                             <div className="bg-white rounded-xl shadow-sm p-6">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-4">
                                     <h3 className="text-lg font-bold text-gray-800">Senarai Peserta</h3>
-                                    <div className="relative w-full sm:w-64">
-                                        <i className="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400"></i>
-                                        <input type="text" placeholder="Cari nama/no..." value={searchQueryPeserta} onChange={e => setSearchQueryPeserta(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 focus:border-islamic-500 text-sm" />
+                                    
+                                    <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+                                        <button onClick={downloadExcelTemplate} type="button" className="w-full sm:w-auto bg-gray-100 text-gray-700 border border-gray-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center justify-center gap-2">
+                                            <i className="ph ph-download-simple text-lg"></i> Muat Turun Format
+                                        </button>
+                                        
+                                        <div className="relative w-full sm:w-auto">
+                                            <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Muat Naik Excel" />
+                                            <button type="button" className="w-full sm:w-auto bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-100 flex items-center justify-center gap-2 relative pointer-events-none">
+                                                <i className="ph ph-microsoft-excel-logo text-lg"></i> Import Excel
+                                            </button>
+                                        </div>
+
+                                        <div className="relative w-full sm:w-64">
+                                            <i className="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400"></i>
+                                            <input type="text" placeholder="Cari nama/no..." value={searchQueryPeserta} onChange={e => setSearchQueryPeserta(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-islamic-500 focus:border-islamic-500 text-sm" />
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="overflow-x-auto">
@@ -788,15 +892,6 @@
                     reader.readAsText(file);
                 };
 
-                const loadDemo = () => {
-                    if(confirm("Amaran: Ini akan menambah data demo ke senarai sedia ada. Teruskan?")) {
-                        // avoid duplicate IDs by mapping new ones
-                        const demo = DEMO_DATA.map(d => ({...d, id: generateId()}));
-                        setParticipants([...participants, ...demo]);
-                        showToast("Data demo dimuatkan.");
-                    }
-                };
-
                 const clearAll = () => {
                     if (confirm("AMARAN Keras! Adakah anda pasti mahu memadam SEMUA data? Tindakan ini tidak boleh dibuat asal.")) {
                         setParticipants([]);
@@ -824,13 +919,19 @@
                             <p className="text-sm text-gray-600 mb-6">Pulihkan data dari fail JSON atau urus data sistem.</p>
                             <div className="space-y-3">
                                 <div className="relative">
-                                    <input type="file" accept=".json" onChange={restoreJSON} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Pilih fail JSON" />
+                                    <input type="file" accept=".json" onChange={restoreJSON} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Pilih fail JSON" />
                                     <div className="w-full bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-lg font-medium hover:bg-gray-100 flex items-center justify-center gap-2 text-center pointer-events-none">
                                         <i className="ph ph-upload-simple text-xl"></i> Restore Data (JSON)
                                     </div>
                                 </div>
-                                <button onClick={loadDemo} className="w-full bg-purple-50 text-purple-700 border border-purple-200 py-3 rounded-lg font-medium hover:bg-purple-100 flex items-center justify-center gap-2">
-                                    <i className="ph ph-magic-wand text-xl"></i> Muat Data Demo
+                                <div className="relative">
+                                    <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Muat Naik Excel Peserta" />
+                                    <div className="w-full bg-green-50 text-green-700 border border-green-200 py-3 rounded-lg font-medium hover:bg-green-100 flex items-center justify-center gap-2 text-center pointer-events-none">
+                                        <i className="ph ph-microsoft-excel-logo text-xl"></i> Import Peserta (Excel)
+                                    </div>
+                                </div>
+                                <button onClick={downloadExcelTemplate} className="w-full bg-blue-50 text-blue-700 border border-blue-200 py-3 rounded-lg font-medium hover:bg-blue-100 flex items-center justify-center gap-2">
+                                    <i className="ph ph-download-simple text-xl"></i> Muat Turun Format Excel
                                 </button>
                                 <button onClick={clearAll} className="w-full bg-red-50 text-red-700 border border-red-200 py-3 rounded-lg font-medium hover:bg-red-100 flex items-center justify-center gap-2 mt-4">
                                     <i className="ph ph-warning-octagon text-xl"></i> Padam Semua Data
